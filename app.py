@@ -1,102 +1,94 @@
 import streamlit as st
-from sympy import symbols, sympify, diff, integrate, Matrix, solve, expand, simplify, latex
+from sympy import symbols, sympify, diff, integrate, Matrix, latex, Limit, S
+import google.generativeai as genai
+from PIL import Image
 
-# Set up the page
-st.set_page_config(page_title="CBSE Class 12 Math AI", layout="wide")
-st.title("📘 CBSE Class 12 Math Solver")
-st.markdown("Select a chapter from the sidebar to solve NCERT-level problems.")
+# --- CONFIGURATION ---
+st.set_page_config(page_title="CBSE Class 12 Math Master", layout="wide")
 
-# Sidebar Navigation
-chapter = st.sidebar.selectbox(
-    "Choose Chapter",
-    ["Relations & Functions", "Algebra (Matrices & Det)", "Calculus (Diff & Int)", "Vectors & 3D Geometry"]
-)
+# Setup Gemini for Proofs, Modelling, and Image Solving
+GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE" 
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-x, y, z = symbols('x y z')
+# --- SIDEBAR NAVIGATION ---
+st.sidebar.title("📚 CBSE Syllabus")
+chapter = st.sidebar.selectbox("Select Chapter", [
+    "AI Chat: Proofs & Image Solver",
+    "Relations & Functions",
+    "Inverse Trig Functions",
+    "Matrices & Determinants",
+    "Continuity & Differentiability",
+    "Calculus (Integrals & Diff)",
+    "Application of Derivatives",
+    "Vector & 3D Geometry",
+    "Linear Programming",
+    "Probability",
+    "Mathematical Modelling"
+])
 
-# --- CHAPTER 1: RELATIONS & FUNCTIONS ---
-if chapter == "Relations & Functions":
-    st.header("Relations and Functions")
-    st.write("Determine the nature of a Relation R on Set A = {1, 2, 3...}")
+x, y, z, t = symbols('x y z t')
+
+# --- 1. AI CHAT: PROOFS, MODELLING, & IMAGES ---
+if chapter == "AI Chat: Proofs & Image Solver":
+    st.header("💬 AI Tutor: Proofs & Problem Solving")
+    st.info("Use this for: Proofs, Mathematical Modelling, and Image Solving.")
     
-    set_input = st.text_input("Enter Set A (comma separated)", "1, 2, 3")
-    rel_input = st.text_input("Enter Relation R as pairs (e.g., (1,1), (2,2))", "(1,1), (2,2), (3,3)")
-    
-    if st.button("Analyze Relation"):
-        A = set(set_input.split(","))
-        # Simple parser for pairs
-        try:
-            pairs = eval(f"[{rel_input}]")
-            is_reflexive = all((i, i) in pairs for i in A)
-            is_symmetric = all((b, a) in pairs for (a, b) in pairs)
-            is_transitive = True
-            for (a, b) in pairs:
-                for (c, d) in pairs:
-                    if b == c and (a, d) not in pairs:
-                        is_transitive = False
-            
-            st.write(f"**Reflexive:** {is_reflexive}")
-            st.write(f"**Symmetric:** {is_symmetric}")
-            st.write(f"**Transitive:** {is_transitive}")
-            
-            if is_reflexive and is_symmetric and is_transitive:
-                st.success("This is an Equivalence Relation!")
-        except:
-            st.error("Check your pair formatting.")
+    uploaded_file = st.file_uploader("➕ Upload Image", type=["jpg", "png", "jpeg"])
+    if prompt := st.chat_input("Ask a question or type a theorem to prove..."):
+        with st.chat_message("user"): st.markdown(prompt)
+        with st.chat_message("assistant"):
+            if uploaded_file:
+                img = Image.open(uploaded_file)
+                response = model.generate_content(["Solve this CBSE 12 problem step-by-step:", img, prompt])
+            else:
+                response = model.generate_content(f"Act as a CBSE Math Expert. Solve/Prove: {prompt}")
+            st.markdown(response.text)
 
-# --- CHAPTER 2: MATRICES & DETERMINANTS ---
-elif chapter == "Algebra (Matrices & Det)":
-    st.header("Matrices and Determinants")
-    matrix_input = st.text_area("Enter Matrix (Rows separated by semicolons, elements by spaces)", "1 2; 3 4")
+# --- 2. RELATIONS & FUNCTIONS ---
+elif chapter == "Relations & Functions":
+    st.header("Relations & Functions")
+    rel_type = st.text_input("Enter Relation pairs for Set {1,2,3} (e.g. (1,1),(2,2),(3,3))")
+    if st.button("Check Equivalence"):
+        # The AI handles logic checks best for set-theory
+        res = model.generate_content(f"Check if relation {rel_type} on set {{1,2,3}} is reflexive, symmetric, and transitive.")
+        st.write(res.text)
+
+# --- 3. MATRICES & DETERMINANTS ---
+elif chapter == "Matrices & Determinants":
+    st.header("Matrices & Determinants")
+    m_input = st.text_area("Matrix (rows separated by ';', elements by space)", "1 2; 3 4")
+    if st.button("Solve"):
+        mat = Matrix([list(map(float, row.split())) for row in m_input.split(';')])
+        st.latex(rf"|A| = {mat.det()}")
+        if mat.det() != 0: st.latex(rf"A^{{-1}} = {latex(mat.inv())}")
+
+# --- 4. CONTINUITY & CALCULUS ---
+elif chapter in ["Continuity & Differentiability", "Calculus (Integrals & Diff)", "Application of Derivatives"]:
+    st.header(f"Calculus Engine: {chapter}")
+    func = st.text_input("Enter Function f(x)", "sin(x) + x**2")
+    action = st.selectbox("Action", ["Differentiate", "Integrate", "Limit at x=0"])
     
     if st.button("Calculate"):
-        try:
-            mat = Matrix([list(map(float, row.split())) for row in matrix_input.split(';')])
-            st.write("**Original Matrix:**")
-            st.latex(latex(mat))
-            
-            st.write(f"**Determinant:** {mat.det()}")
-            
-            if mat.is_square and mat.det() != 0:
-                st.write("**Inverse Matrix:**")
-                st.latex(latex(mat.inv()))
-            else:
-                st.warning("Matrix is singular or not square; Inverse doesn't exist.")
-        except:
-            st.error("Invalid Matrix format.")
+        expr = sympify(func)
+        if action == "Differentiate": res = diff(expr, x)
+        elif action == "Integrate": res = integrate(expr, x)
+        else: res = Limit(expr, x, 0).doit()
+        st.latex(latex(res))
 
-# --- CHAPTER 3: CALCULUS ---
-elif chapter == "Calculus (Diff & Int)":
-    st.header("Differential & Integral Calculus")
-    calc_type = st.radio("Operation", ["Differentiation", "Integration", "Limit"])
-    expr_input = st.text_input("Enter Expression (use * for mult, ** for power)", "x**2 + sin(x)")
-    
-    if st.button("Solve Step"):
-        try:
-            expr = sympify(expr_input)
-            if calc_type == "Differentiation":
-                result = diff(expr, x)
-                st.latex(rf"\frac{{d}}{{dx}}({latex(expr)}) = {latex(result)}")
-            elif calc_type == "Integration":
-                result = integrate(expr, x)
-                st.latex(rf"\int {latex(expr)} \, dx = {latex(result)} + C")
-        except:
-            st.error("Please check your math syntax.")
+# --- 5. VECTOR & 3D GEOMETRY ---
+elif chapter == "Vector & 3D Geometry":
+    st.header("Vector & 3D Geometry")
+    v1 = st.text_input("Vector A (i, j, k)", "1, 0, 2")
+    v2 = st.text_input("Vector B (i, j, k)", "3, 1, 1")
+    if st.button("Find Cross Product"):
+        a = Matrix(list(map(float, v1.split(','))))
+        b = Matrix(list(map(float, v2.split(','))))
+        st.latex(latex(a.cross(b)))
 
-# --- CHAPTER 4: VECTORS ---
-elif chapter == "Vectors & 3D Geometry":
-    st.header("Vector Algebra")
-    st.write("Define Vectors as [x, y, z]")
-    v1_raw = st.text_input("Vector A", "1, 2, 3")
-    v2_raw = st.text_input("Vector B", "4, 5, 6")
-    
-    if st.button("Compute Vectors"):
-        a = Matrix(list(map(float, v1_raw.split(','))))
-        b = Matrix(list(map(float, v2_raw.split(','))))
-        
-        dot_product = a.dot(b)
-        cross_product = a.cross(b)
-        
-        st.write(f"**Dot Product (A.B):** {dot_product}")
-        st.write("**Cross Product (AxB):**")
-        st.latex(latex(cross_product))
+# --- 6. PROBABILITY & LPP ---
+elif chapter in ["Linear Programming", "Probability", "Mathematical Modelling"]:
+    st.header(chapter)
+    st.write(f"Send your {chapter} question to the AI Expert for logical breakdown.")
+    if st.button(f"Go to AI Chat"):
+        st.info("Switch to the first tab in the sidebar to solve these complex topics!")
