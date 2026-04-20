@@ -7,7 +7,7 @@ from PIL import Image
 st.set_page_config(page_title="CBSE Class 12 Math Master", layout="wide")
 
 # Setup Gemini for Proofs, Modelling, and Image Solving
-GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE" 
+GEMINI_API_KEY = "AIzaSyCmM6f6iVn70kCQu6rf_lVJNOoBPW6y7G4" 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
