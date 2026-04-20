@@ -7,8 +7,15 @@ from PIL import Image
 st.set_page_config(page_title="CBSE Class 12 Math Master", layout="wide")
 
 # Setup Gemini for Proofs, Modelling, and Image Solving
-GEMINI_API_KEY = "AIzaSyCmM6f6iVn70kCQu6rf_lVJNOoBPW6y7G4" 
+# Instead of pasting the key here, we tell Streamlit to find it in "Secrets"
+try:
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+except KeyError:
+    st.error("API Key not found. Please set 'GEMINI_API_KEY' in Streamlit Secrets.")
+    st.stop()
+
 genai.configure(api_key=GEMINI_API_KEY)
+
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # --- SIDEBAR NAVIGATION ---
