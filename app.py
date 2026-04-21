@@ -16,7 +16,8 @@ except KeyError:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-model = genai.GenerativeModel('gemini-1.5-pro-latest')
+#model = genai.GenerativeModel('gemini-1.5-pro-latest')
+model = genai.GenerativeModel('gemini-3.1-pro-preview')
 
 # --- SIDEBAR NAVIGATION ---
 st.sidebar.title("📚 CBSE Syllabus")
