@@ -1,75 +1,48 @@
 import streamlit as st
 from sympy import symbols, sympify, diff, integrate, Matrix, latex, Limit, S
-import google.generativeai as genai
+# Updated import for 2026 standards
+import google.genai as genai 
 from PIL import Image
 
-# --- CONFIGURATION ---
-st.set_page_config(page_title="CBSE Class 12 Math Master", layout="wide")
+# ... (keep your existing config and secrets code) ...
 
-# Fetch Key from Secrets
-try:
-    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-except KeyError:
-    st.error("API Key not found in Streamlit Secrets.")
-    st.stop()
-
-genai.configure(api_key=GEMINI_API_KEY)
-# Using Flash for speed and higher free-tier quota
-model = genai.GenerativeModel('gemini-3-flash-preview')
-
-# --- MATH KEYBOARD HELPER ---
+# --- NEW IMPROVED MATH KEYBOARD ---
 def math_keyboard(layout_type):
-    st.write("---")
-    st.subheader("⌨️ Math Toolbar")
+    st.write(f"### ⌨️ {layout_type} Keyboard")
     
-    # Define toolbars for different chapters
+    # Comprehensive symbol sets for CBSE 12
     keyboards = {
-        "General": ["^2", "^3", "sqrt()", "pi", "( )", "e"],
-        "Calculus": ["d/dx", "∫", "limit(", "∞", "exp(", "log("],
-        "Matrices": ["[ ]", "det()", "inv()", "T", "I"],
-        "Relations": ["∈", "⊂", "∀", "∃", "≤", "≥", "≠"]
+        "General": ["^2", "^3", "sqrt(", "pi", "(", ")", "e", "+", "-", "*", "/", "="],
+        "Calculus": ["d/dx", "∫", "limit(", "∞", "log(", "exp(", "sin(", "cos(", "tan("],
+        "Matrices": ["det(", "inv(", "adj(", "T", "[", "]", ";", "0", "1", "I"],
+        "Relations": ["∈", "⊂", "∀", "∃", "≤", "≥", "≠", "→", "R", "N", "Z"],
+        "Vectors": ["î", "ĵ", "k̂", "·", "×", "| |", "θ", "λ", "μ"]
     }
     
-    selected_keys = keyboards.get(layout_type, keyboards["General"])
+    symbols_to_show = keyboards.get(layout_type, keyboards["General"])
     
-    # Create columns for buttons
-    cols = st.columns(len(selected_keys))
-    for i, symbol in enumerate(selected_keys):
-        if cols[i].button(symbol):
-            st.info(f"Copy-paste this: `{symbol}`") 
-            # Note: Streamlit doesn't allow direct text injection into an active input,
-            # so we show it as a helper for the user to copy/paste.
+    # Display buttons in a grid of 4 columns
+    cols = st.columns(4) 
+    for i, symbol in enumerate(symbols_to_show):
+        with cols[i % 4]:
+            if st.button(symbol, key=f"btn_{layout_type}_{symbol}_{i}"):
+                # This creates a code block you can easily double-tap to copy
+                st.code(symbol) 
 
-# --- SIDEBAR ---
-st.sidebar.title("📚 CBSE Syllabus")
-chapter = st.sidebar.selectbox("Select Chapter", [
-    "AI Chat: Proofs & Image Solver",
-    "Relations & Functions",
-    "Matrices & Determinants",
-    "Calculus (Integrals & Diff)",
-    "Vector & 3D Geometry"
-])
-
-# --- CHAPTER LOGIC ---
-
+# --- UPDATED CHAPTER SELECTION ---
+# Ensure each chapter calls the correct keyboard
 if chapter == "AI Chat: Proofs & Image Solver":
-    st.header("💬 AI Tutor: Proofs & Problem Solving")
-    math_keyboard("General") # Show general math symbols
-    
-    uploaded_file = st.file_uploader("➕ Upload Image", type=["jpg", "png", "jpeg"])
-    prompt = st.text_area("Type your question here (or use the toolbar above):")
-    
-    if st.button("Solve"):
-        with st.spinner("Analyzing..."):
-            if uploaded_file:
-                img = Image.open(uploaded_file)
-                response = model.generate_content(["Solve this CBSE 12 problem step-by-step:", img, prompt])
-            else:
-                response = model.generate_content(f"Act as a CBSE Math Expert. Solve/Prove: {prompt}")
-            st.markdown(response.text)
-
+    math_keyboard("General")
+    # ... rest of your code ...
+elif chapter == "Relations & Functions":
+    math_keyboard("Relations")
+    # ... rest of your code ...
 elif chapter == "Matrices & Determinants":
-    st.header("Matrices & Determinants")
     math_keyboard("Matrices")
-    m_input = st.text_area("Matrix (rows separated by ';', elements by space)", "1 2; 3 4")
-    # ... (rest of your matrix code)
+    # ... rest of your code ...
+elif chapter == "Calculus (Integrals & Diff)":
+    math_keyboard("Calculus")
+    # ... rest of your code ...
+elif chapter == "Vector & 3D Geometry":
+    math_keyboard("Vectors")
+    # ... rest of your code ...
