@@ -6,41 +6,35 @@ from PIL import Image
 # --- CONFIGURATION ---
 st.set_page_config(page_title="CBSE Class 12 Math Master", layout="wide")
 
-# Setup Gemini using Streamlit Secrets
+# Setup Gemini
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 except KeyError:
-    st.error("API Key not found. Please set 'GEMINI_API_KEY' in Streamlit Secrets.")
+    st.error("API Key not found in Secrets.")
     st.stop()
 
 genai.configure(api_key=GEMINI_API_KEY)
-
-# Using Gemini 3 Flash for high speed and better free-tier limits
 model = genai.GenerativeModel('gemini-3-flash-preview')
 
-# --- MATH KEYBOARD FUNCTION ---
-def math_keyboard(layout_type):
-    st.markdown(f"#### ⌨️ {layout_type} Toolbar")
-    
-    # Comprehensive symbol sets for CBSE 12
-    keyboards = {
-        "General": ["^2", "^3", "sqrt(", "pi", "(", ")", "e", "+", "-", "*", "/", "="],
-        "Calculus": ["d/dx", "∫", "limit(", "∞", "log(", "exp(", "sin(", "cos(", "tan("],
-        "Matrices": ["det(", "inv(", "adj(", "T", "[", "]", ";", "0", "1", "I"],
-        "Relations": ["∈", "⊂", "∀", "∃", "≤", "≥", "≠", "→", "R", "N", "Z"],
-        "Vectors": ["î", "ĵ", "k̂", "·", "×", "| |", "θ", "λ", "μ"]
-    }
-    
-    symbols_to_show = keyboards.get(layout_type, keyboards["General"])
-    
-    # Display buttons in a neat grid
-    cols = st.columns(6) 
-    for i, symbol in enumerate(symbols_to_show):
-        with cols[i % 6]:
-            if st.button(symbol, key=f"btn_{layout_type}_{symbol}_{i}"):
-                st.code(symbol) # Provides an easy-to-copy snippet
+# --- SESSION STATE INITIALIZATION ---
+# This keeps your chat active for follow-up questions
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# --- SIDEBAR NAVIGATION ---
+# --- GLOBAL MATH TOOLBAR ---
+# This stays at the top of the app at all times
+st.markdown("### ⌨️ Universal Math Toolbar")
+def global_toolbar():
+    math_keys = ["^2", "^3", "sqrt(", "pi", "∫", "d/dx", "det(", "limit(", "log(", "sin(", "cos(", "tan(", "∈", "≤", "≥", "≠"]
+    cols = st.columns(8)
+    for i, symbol in enumerate(math_keys):
+        with cols[i % 8]:
+            if st.button(symbol, key=f"global_{symbol}_{i}"):
+                st.code(symbol)
+st.write("---")
+global_toolbar()
+
+# --- SIDEBAR ---
 st.sidebar.title("📚 CBSE Syllabus")
 chapter = st.sidebar.selectbox("Select Chapter", [
     "AI Chat: Proofs & Image Solver",
@@ -50,62 +44,63 @@ chapter = st.sidebar.selectbox("Select Chapter", [
     "Vector & 3D Geometry"
 ])
 
-x, y, z, t = symbols('x y z t')
+# --- CHAT INTERFACE LOGIC ---
+st.header(f"📍 {chapter}")
 
-# --- CHAPTER LOGIC ---
+# Display existing chat history
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
+# Image Uploader (only for Chat chapter)
+uploaded_file = None
 if chapter == "AI Chat: Proofs & Image Solver":
-    st.header("💬 AI Tutor: Proofs & Problem Solving")
-    math_keyboard("General")
-    
-    uploaded_file = st.file_uploader("➕ Upload Image", type=["jpg", "png", "jpeg"])
-    prompt = st.text_area("Type your question here (or copy symbols from above):")
-    
-    if st.button("Solve", type="primary"):
-        with st.spinner("AI is thinking..."):
-            if uploaded_file:
-                img = Image.open(uploaded_file)
-                response = model.generate_content(["Solve this CBSE 12 problem step-by-step:", img, prompt])
-            else:
-                response = model.generate_content(f"Act as a CBSE Math Expert. Solve/Prove: {prompt}")
-            st.markdown(response.text)
+    uploaded_file = st.file_uploader("➕ Upload Image for solving", type=["jpg", "png", "jpeg"])
 
-elif chapter == "Relations & Functions":
-    st.header("Relations & Functions")
-    math_keyboard("Relations")
-    rel_type = st.text_input("Enter Relation pairs (e.g. (1,1),(2,2))")
-    if st.button("Check Equivalence"):
-        res = model.generate_content(f"Check if relation {rel_type} on set {{1,2,3}} is reflexive, symmetric, and transitive.")
-        st.write(res.text)
+# Chat Input Box (stays active for follow-ups)
+if prompt := st.chat_input("Ask a question or explain your doubt..."):
+    # Add user message to state
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-elif chapter == "Matrices & Determinants":
-    st.header("Matrices & Determinants")
-    math_keyboard("Matrices")
-    m_input = st.text_area("Matrix (rows by ';', elements by space)", "1 2; 3 4")
-    if st.button("Calculate Matrix"):
-        mat = Matrix([list(map(float, row.split())) for row in m_input.split(';')])
-        st.latex(rf"|A| = {mat.det()}")
-        if mat.det() != 0: st.latex(rf"A^{{-1}} = {latex(mat.inv())}")
+    # Generate AI response
+    with st.chat_message("assistant"):
+        with st.spinner("AI is analyzing..."):
+            try:
+                # Combine context if there's an image
+                if uploaded_file and len(st.session_state.messages) == 1:
+                    img = Image.open(uploaded_file)
+                    response = model.generate_content(["Solve this CBSE 12 problem:", img, prompt])
+                else:
+                    # Regular text conversation
+                    # We pass the full history for continuity
+                    chat = model.start_chat(history=[])
+                    response = chat.send_message(f"As a CBSE Math Expert, help with this: {prompt}")
+                
+                full_response = response.text
+                st.markdown(full_response)
+                # Save assistant message to state
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+# --- SPECIFIC TOOLS (Below Chat) ---
+if chapter == "Matrices & Determinants":
+    with st.expander("Use Calculator Tool"):
+        m_input = st.text_area("Matrix (1 2; 3 4)", "1 2; 3 4")
+        if st.button("Calculate"):
+            mat = Matrix([list(map(float, row.split())) for row in m_input.split(';')])
+            st.latex(rf"|A| = {mat.det()}")
 
 elif chapter == "Calculus (Integrals & Diff)":
-    st.header("Calculus Engine")
-    math_keyboard("Calculus")
-    func = st.text_input("Enter Function f(x)", "sin(x) + x**2")
-    action = st.selectbox("Action", ["Differentiate", "Integrate", "Limit at x=0"])
-    
-    if st.button("Run Calculus"):
-        expr = sympify(func)
-        if action == "Differentiate": res = diff(expr, x)
-        elif action == "Integrate": res = integrate(expr, x)
-        else: res = Limit(expr, x, 0).doit()
-        st.latex(latex(res))
+    with st.expander("Use Calculus Engine"):
+        func = st.text_input("Enter Function", "x**2")
+        if st.button("Integrate"):
+            res = integrate(sympify(func), symbols('x'))
+            st.latex(latex(res))
 
-elif chapter == "Vector & 3D Geometry":
-    st.header("Vector & 3D Geometry")
-    math_keyboard("Vectors")
-    v1 = st.text_input("Vector A (e.g., 1, 0, 2)", "1, 0, 2")
-    v2 = st.text_input("Vector B (e.g., 3, 1, 1)", "3, 1, 1")
-    if st.button("Find Cross Product"):
-        a = Matrix(list(map(float, v1.split(','))))
-        b = Matrix(list(map(float, v2.split(','))))
-        st.latex(latex(a.cross(b)))
+# Button to clear conversation
+if st.sidebar.button("Clear Conversation"):
+    st.session_state.messages = []
+    st.rerun()
