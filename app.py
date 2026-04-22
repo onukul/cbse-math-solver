@@ -17,15 +17,17 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-3-flash-preview')
 
 # --- SESSION STATE INITIALIZATION ---
-# This keeps your chat active for follow-up questions
+# 'messages' stores the UI display, 'chat_session' stores the AI's memory
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "chat_session" not in st.session_state:
+    st.session_state.chat_session = model.start_chat(history=[])
 
 # --- GLOBAL MATH TOOLBAR ---
-# This stays at the top of the app at all times
 st.markdown("### ⌨️ Universal Math Toolbar")
 def global_toolbar():
-    math_keys = ["^2", "^3", "sqrt(", "pi", "∫", "d/dx", "det(", "limit(", "log(", "sin(", "cos(", "tan(", "∈", "≤", "≥", "≠"]
+    # Added subscript/superscript helpers here as requested
+    math_keys = ["^2", "^3", "sqrt(", "pi", "∫", "d/dx", "det(", "limit(", "_", "^{}", "∈", "≤", "≥", "≠"]
     cols = st.columns(8)
     for i, symbol in enumerate(math_keys):
         with cols[i % 8]:
@@ -44,7 +46,13 @@ chapter = st.sidebar.selectbox("Select Chapter", [
     "Vector & 3D Geometry"
 ])
 
-# --- CHAT INTERFACE LOGIC ---
+# Button to clear conversation
+if st.sidebar.button("Clear Conversation"):
+    st.session_state.messages = []
+    st.session_state.chat_session = model.start_chat(history=[])
+    st.rerun()
+
+# --- CHAT INTERFACE ---
 st.header(f"📍 {chapter}")
 
 # Display existing chat history
@@ -53,54 +61,31 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # Image Uploader (only for Chat chapter)
-uploaded_file = None
-if chapter == "AI Chat: Proofs & Image Solver":
-    uploaded_file = st.file_uploader("➕ Upload Image for solving", type=["jpg", "png", "jpeg"])
+uploaded_file = st.sidebar.file_uploader("➕ Upload Image", type=["jpg", "png", "jpeg"])
 
-# Chat Input Box (stays active for follow-ups)
+# Chat Input Box
 if prompt := st.chat_input("Ask a question or explain your doubt..."):
-    # Add user message to state
+    # 1. Show user message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate AI response
+    # 2. Generate AI response with MEMORY
     with st.chat_message("assistant"):
-        with st.spinner("AI is analyzing..."):
+        with st.spinner("AI is thinking..."):
             try:
-                # Combine context if there's an image
-                if uploaded_file and len(st.session_state.messages) == 1:
+                # If first message has an image, use generate_content
+                if uploaded_file and len(st.session_state.messages) <= 1:
                     img = Image.open(uploaded_file)
                     response = model.generate_content(["Solve this CBSE 12 problem:", img, prompt])
+                    # Sync the image response into chat history
+                    st.session_state.chat_session.history.append({"role": "user", "parts": [prompt]})
+                    st.session_state.chat_session.history.append({"role": "model", "parts": [response.text]})
                 else:
-                    # Regular text conversation
-                    # We pass the full history for continuity
-                    chat = model.start_chat(history=[])
-                    response = chat.send_message(f"As a CBSE Math Expert, help with this: {prompt}")
+                    # Continuous conversation
+                    response = st.session_state.chat_session.send_message(prompt)
                 
-                full_response = response.text
-                st.markdown(full_response)
-                # Save assistant message to state
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
+                st.markdown(response.text)
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
             except Exception as e:
-                st.error(f"Error: {e}")
-
-# --- SPECIFIC TOOLS (Below Chat) ---
-if chapter == "Matrices & Determinants":
-    with st.expander("Use Calculator Tool"):
-        m_input = st.text_area("Matrix (1 2; 3 4)", "1 2; 3 4")
-        if st.button("Calculate"):
-            mat = Matrix([list(map(float, row.split())) for row in m_input.split(';')])
-            st.latex(rf"|A| = {mat.det()}")
-
-elif chapter == "Calculus (Integrals & Diff)":
-    with st.expander("Use Calculus Engine"):
-        func = st.text_input("Enter Function", "x**2")
-        if st.button("Integrate"):
-            res = integrate(sympify(func), symbols('x'))
-            st.latex(latex(res))
-
-# Button to clear conversation
-if st.sidebar.button("Clear Conversation"):
-    st.session_state.messages = []
-    st.rerun()
+                st.error(f"Context Error: {e}")
