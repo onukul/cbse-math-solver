@@ -14,10 +14,16 @@ except KeyError:
     st.stop()
 
 genai.configure(api_key=GEMINI_API_KEY)
+# Using Gemini 3 Flash for speed and higher free-tier limits
 model = genai.GenerativeModel('gemini-3-flash-preview')
 
-# --- NOTEBOOK THEME (HTML/CSS) ---
+# --- NOTEBOOK THEME & PDF PRINT LOGIC (HTML/CSS/JS) ---
 st.markdown("""
+    <script>
+    function printPage() {
+        window.print();
+    }
+    </script>
     <style>
     /* Main Background: Paper Texture */
     .stApp {
@@ -71,6 +77,16 @@ st.markdown("""
         font-family: 'Courier New', Courier, monospace;
         border-radius: 5px;
     }
+
+    /* PDF PRINT STYLING */
+    @media print {
+        section[data-testid="stSidebar"], .stButton, .header-box, .toolbar-container, button {
+            display: none !important;
+        }
+        .stApp {
+            background: white !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -78,14 +94,15 @@ st.markdown("""
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chat_session" not in st.session_state:
+    # This keeps the AI context alive for follow-up questions
     st.session_state.chat_session = model.start_chat(history=[])
 
 # --- GLOBAL MATH TOOLBAR ---
 st.markdown('<div class="header-box"><h1>📚 CBSE Math Master</h1></div>', unsafe_allow_html=True)
-st.markdown("### ⌨️ Universal Math Toolbar")
+st.markdown('<div class="toolbar-container"><h3>⌨️ Universal Math Toolbar</h3>', unsafe_allow_html=True)
 
 def global_toolbar():
-    # Includes standard symbols and subscript/superscript helpers
+    # Includes subscript (_) and superscript (^) helpers
     math_keys = ["^2", "^3", "sqrt(", "pi", "∫", "d/dx", "det(", "limit(", "_", "^{}", "∈", "≤", "≥", "≠", "sin(", "cos("]
     cols = st.columns(8)
     for i, symbol in enumerate(math_keys):
@@ -106,10 +123,16 @@ chapter = st.sidebar.selectbox("Go to:", [
     "Vector & 3D Geometry"
 ])
 
+# Sidebar Controls
+st.sidebar.write("---")
 if st.sidebar.button("🗑️ Clear Conversation"):
     st.session_state.messages = []
     st.session_state.chat_session = model.start_chat(history=[])
     st.rerun()
+
+if st.sidebar.button("💾 Save Solution as PDF"):
+    st.markdown('<script>window.print();</script>', unsafe_allow_html=True)
+    st.sidebar.info("Select 'Save as PDF' from your phone's print menu.")
 
 # --- CHAT INTERFACE ---
 st.subheader(f"📍 {chapter}")
@@ -119,42 +142,37 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Only show uploader in Chat chapter
-uploaded_file = None
-if chapter == "AI Chat: Proofs & Image Solver":
-    uploaded_file = st.sidebar.file_uploader("➕ Upload Question Image", type=["jpg", "png", "jpeg"])
+# Image Uploader (only for Chat chapter)
+uploaded_file = st.sidebar.file_uploader("➕ Upload Question Image", type=["jpg", "png", "jpeg"])
 
 # Active Chat Input
 if prompt := st.chat_input("Ask a math question or follow-up doubt..."):
+    # Store and display user message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Writing response..."):
+        with st.spinner("Analyzing context and writing response..."):
             try:
                 # Handle images for the first turn or text for follow-ups
                 if uploaded_file and len(st.session_state.messages) <= 1:
                     img = Image.open(uploaded_file)
                     response = model.generate_content(["Solve this CBSE 12 problem step-by-step:", img, prompt])
-                    # Manually sync image context to chat history
+                    # Sync initial image context to history manually
                     st.session_state.chat_session.history.append({"role": "user", "parts": [prompt]})
                     st.session_state.chat_session.history.append({"role": "model", "parts": [response.text]})
                 else:
-                    # Continuous conversation with memory
+                    # Continuous conversation using the stored chat session
                     response = st.session_state.chat_session.send_message(prompt)
                 
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
-                
-                # Dynamic Exam Tip Example
-                if "relation" in prompt.lower():
-                    st.markdown("""<div class="exam-tip"><strong>📝 Board Tip:</strong> Always state the definition of reflexivity, symmetry, and transitivity before testing pairs!</div>""", unsafe_allow_html=True)
             
             except Exception as e:
-                st.error(f"API Connection Issue: {e}")
+                st.error(f"API Error: {e}. Try clearing conversation if it persists.")
 
-# --- CHAPTER SPECIFIC TOOLS (Expander style to keep UI clean) ---
+# --- CHAPTER TOOLS ---
 if chapter == "Matrices & Determinants":
     with st.expander("🧮 Matrix Calculator Tool"):
         m_input = st.text_area("Matrix (e.g., 1 2; 3 4)", "1 0; 0 1")
