@@ -1,4 +1,4 @@
 streamlit
 sympy
-google-generativeai
+google-genai
 Pillow
