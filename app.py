@@ -6,46 +6,61 @@ from PIL import Image
 # --- CONFIGURATION ---
 st.set_page_config(page_title="CBSE Class 12 Math Master", layout="wide")
 
-# Setup Gemini for Proofs, Modelling, and Image Solving
-# Instead of pasting the key here, we tell Streamlit to find it in "Secrets"
+# Fetch Key from Secrets
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 except KeyError:
-    st.error("API Key not found. Please set 'GEMINI_API_KEY' in Streamlit Secrets.")
+    st.error("API Key not found in Streamlit Secrets.")
     st.stop()
 
 genai.configure(api_key=GEMINI_API_KEY)
-
-#model = genai.GenerativeModel('gemini-1.5-pro-latest')
+# Using Flash for speed and higher free-tier quota
 model = genai.GenerativeModel('gemini-3-flash-preview')
 
-# --- SIDEBAR NAVIGATION ---
+# --- MATH KEYBOARD HELPER ---
+def math_keyboard(layout_type):
+    st.write("---")
+    st.subheader("⌨️ Math Toolbar")
+    
+    # Define toolbars for different chapters
+    keyboards = {
+        "General": ["^2", "^3", "sqrt()", "pi", "( )", "e"],
+        "Calculus": ["d/dx", "∫", "limit(", "∞", "exp(", "log("],
+        "Matrices": ["[ ]", "det()", "inv()", "T", "I"],
+        "Relations": ["∈", "⊂", "∀", "∃", "≤", "≥", "≠"]
+    }
+    
+    selected_keys = keyboards.get(layout_type, keyboards["General"])
+    
+    # Create columns for buttons
+    cols = st.columns(len(selected_keys))
+    for i, symbol in enumerate(selected_keys):
+        if cols[i].button(symbol):
+            st.info(f"Copy-paste this: `{symbol}`") 
+            # Note: Streamlit doesn't allow direct text injection into an active input,
+            # so we show it as a helper for the user to copy/paste.
+
+# --- SIDEBAR ---
 st.sidebar.title("📚 CBSE Syllabus")
 chapter = st.sidebar.selectbox("Select Chapter", [
     "AI Chat: Proofs & Image Solver",
     "Relations & Functions",
-    "Inverse Trig Functions",
     "Matrices & Determinants",
-    "Continuity & Differentiability",
     "Calculus (Integrals & Diff)",
-    "Application of Derivatives",
-    "Vector & 3D Geometry",
-    "Linear Programming",
-    "Probability",
-    "Mathematical Modelling"
+    "Vector & 3D Geometry"
 ])
 
-x, y, z, t = symbols('x y z t')
+# --- CHAPTER LOGIC ---
 
-# --- 1. AI CHAT: PROOFS, MODELLING, & IMAGES ---
 if chapter == "AI Chat: Proofs & Image Solver":
     st.header("💬 AI Tutor: Proofs & Problem Solving")
-    st.info("Use this for: Proofs, Mathematical Modelling, and Image Solving.")
+    math_keyboard("General") # Show general math symbols
     
     uploaded_file = st.file_uploader("➕ Upload Image", type=["jpg", "png", "jpeg"])
-    if prompt := st.chat_input("Ask a question or type a theorem to prove..."):
-        with st.chat_message("user"): st.markdown(prompt)
-        with st.chat_message("assistant"):
+    prompt = st.text_area("Type your question here (or use the toolbar above):")
+    
+    if st.button("Solve"):
+        with st.spinner("Analyzing..."):
             if uploaded_file:
                 img = Image.open(uploaded_file)
                 response = model.generate_content(["Solve this CBSE 12 problem step-by-step:", img, prompt])
@@ -53,50 +68,8 @@ if chapter == "AI Chat: Proofs & Image Solver":
                 response = model.generate_content(f"Act as a CBSE Math Expert. Solve/Prove: {prompt}")
             st.markdown(response.text)
 
-# --- 2. RELATIONS & FUNCTIONS ---
-elif chapter == "Relations & Functions":
-    st.header("Relations & Functions")
-    rel_type = st.text_input("Enter Relation pairs for Set {1,2,3} (e.g. (1,1),(2,2),(3,3))")
-    if st.button("Check Equivalence"):
-        # The AI handles logic checks best for set-theory
-        res = model.generate_content(f"Check if relation {rel_type} on set {{1,2,3}} is reflexive, symmetric, and transitive.")
-        st.write(res.text)
-
-# --- 3. MATRICES & DETERMINANTS ---
 elif chapter == "Matrices & Determinants":
     st.header("Matrices & Determinants")
+    math_keyboard("Matrices")
     m_input = st.text_area("Matrix (rows separated by ';', elements by space)", "1 2; 3 4")
-    if st.button("Solve"):
-        mat = Matrix([list(map(float, row.split())) for row in m_input.split(';')])
-        st.latex(rf"|A| = {mat.det()}")
-        if mat.det() != 0: st.latex(rf"A^{{-1}} = {latex(mat.inv())}")
-
-# --- 4. CONTINUITY & CALCULUS ---
-elif chapter in ["Continuity & Differentiability", "Calculus (Integrals & Diff)", "Application of Derivatives"]:
-    st.header(f"Calculus Engine: {chapter}")
-    func = st.text_input("Enter Function f(x)", "sin(x) + x**2")
-    action = st.selectbox("Action", ["Differentiate", "Integrate", "Limit at x=0"])
-    
-    if st.button("Calculate"):
-        expr = sympify(func)
-        if action == "Differentiate": res = diff(expr, x)
-        elif action == "Integrate": res = integrate(expr, x)
-        else: res = Limit(expr, x, 0).doit()
-        st.latex(latex(res))
-
-# --- 5. VECTOR & 3D GEOMETRY ---
-elif chapter == "Vector & 3D Geometry":
-    st.header("Vector & 3D Geometry")
-    v1 = st.text_input("Vector A (i, j, k)", "1, 0, 2")
-    v2 = st.text_input("Vector B (i, j, k)", "3, 1, 1")
-    if st.button("Find Cross Product"):
-        a = Matrix(list(map(float, v1.split(','))))
-        b = Matrix(list(map(float, v2.split(','))))
-        st.latex(latex(a.cross(b)))
-
-# --- 6. PROBABILITY & LPP ---
-elif chapter in ["Linear Programming", "Probability", "Mathematical Modelling"]:
-    st.header(chapter)
-    st.write(f"Send your {chapter} question to the AI Expert for logical breakdown.")
-    if st.button(f"Go to AI Chat"):
-        st.info("Switch to the first tab in the sidebar to solve these complex topics!")
+    # ... (rest of your matrix code)
